@@ -1,0 +1,31 @@
+name: Unrecognised parcel status
+description: Report an unmapped UPS status using sanitized evidence.
+title: "[status] "
+labels: ["unrecognised-status"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The integration logs a generic warning without carrier-controlled
+        data. Only report a non-identifying status or activity code and its
+        expected meaning. Do not attach raw carrier responses, tracking
+        numbers, browser captures, credentials, tokens, addresses or names.
+  - type: textarea
+    id: mapping
+    attributes:
+      label: Sanitized status mapping
+      description: Include the safe status code, expected meaning, and whether it is a status or activity code.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+    validations:
+      required: true

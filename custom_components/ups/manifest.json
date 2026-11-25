@@ -1,0 +1,19 @@
+{
+  "domain": "ups",
+  "name": "UPS",
+  "categories": [
+    "productivity_information"
+  ],
+  "codeowners": [
+    "@Daniel-Dietz"
+  ],
+  "config_flow": true,
+  "documentation": "https://github.com/Daniel-Dietz/ha-ups",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Daniel-Dietz/ha-ups/issues",
+  "quality_scale": "silver",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "2.0.1"
+}

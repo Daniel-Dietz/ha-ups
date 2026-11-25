@@ -1,0 +1,70 @@
+name: Validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests/ --cov=custom_components.ups --cov-report=term-missing --cov-fail-under=95
+  target-core:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ha: ["2026.11.3", "latest"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install target Home Assistant core
+        env:
+          HA_VERSION: ${{ matrix.ha }}
+        run: |
+          if [ "$HA_VERSION" = latest ]; then
+            pip install homeassistant
+          else
+            pip install "homeassistant==$HA_VERSION"
+          fi
+      - name: Checkout verified aggregator revision
+        uses: actions/checkout@v7
+        with:
+          repository: ha-parcel-integrations/ha-parcel-aggregator
+          ref: a17df3649bf6d3fc4876aa33676975b066cee1ad
+          path: .test-deps/parcel-aggregator
+          persist-credentials: false
+      - run: python scripts/smoke_core.py
+      - run: python scripts/smoke_runtime.py --aggregator-source .test-deps/parcel-aggregator
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - run: pip install ruff==0.17.0
+      - run: ruff check .
+      - run: ruff format --check .
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: home-assistant/actions/hassfest@master
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
