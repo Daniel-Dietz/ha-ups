@@ -1,0 +1,170 @@
+{
+  "title": "UPS",
+  "config": {
+    "step": {
+      "user": {
+        "title": "UPS einrichten",
+        "description": "Die manuelle UPS-Sendungsverfolgung benötigt kein Konto und keine Postleitzahl. Füge Sendungen über die Integrationsoptionen oder den Dienst ups.track_parcel hinzu.\n\nUPS begrenzt die Anzahl der Abfragen. Aktualisierungen können mehrere Stunden dauern. Bei Störungen bleiben die zuletzt bekannten Daten sichtbar; die Integration wartet vor weiteren Abfragen. Zugestellte Pakete werden nicht erneut abgefragt."
+      }
+    },
+    "abort": {
+      "already_configured": "UPS ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "UPS-Optionen",
+        "menu_options": {
+          "parcels": "Sendungen",
+          "settings": "Einstellungen"
+        },
+        "sections": {
+          "parcels": {
+            "name": "Sendungen",
+            "data": {
+              "add": "Sendung hinzufügen",
+              "remove": "Sendungen entfernen"
+            },
+            "data_description": {
+              "add": "Gib eine UPS-Sendungsnummer ein."
+            }
+          },
+          "delivered": {
+            "name": "Zugestellte Sendungen",
+            "data": {
+              "delivered_filter_type": "Filtern nach",
+              "delivered_filter_amount": "Anzahl"
+            },
+            "data_description": {
+              "delivered_filter_type": "Zeige Sendungen der letzten X Tage oder die X zuletzt zugestellten Sendungen.",
+              "delivered_filter_amount": "Anzahl Tage oder Sendungen."
+            }
+          },
+          "history": {
+            "name": "Sendungsverlauf",
+            "data": {
+              "include_history": "Statusverlauf anzeigen"
+            },
+            "data_description": {
+              "include_history": "Ergänzt je Sendung einen Verlauf mit Zeitstempel und Status. Standardmäßig deaktiviert."
+            }
+          }
+        }
+      },
+      "parcels": {
+        "title": "Sendungen verwalten",
+        "data": {
+          "tracking_codes": "Sendungsnummern"
+        }
+      },
+      "settings": {
+        "title": "Einstellungen",
+        "data": {
+          "delivered_filter_type": "Zugestellte Sendungen: filtern nach",
+          "delivered_filter_amount": "Zugestellte Sendungen: Anzahl",
+          "include_history": "Statusverlauf anzeigen"
+        }
+      }
+    },
+    "error": {
+      "invalid_tracking_code": "Ungültige UPS-Sendungsnummer.",
+      "already_tracked": "Diese Sendung wird bereits verfolgt."
+    }
+  },
+  "selector": {
+    "delivered_filter_type": {
+      "options": {
+        "days": "Tage",
+        "parcels": "Anzahl Sendungen"
+      }
+    }
+  },
+  "services": {
+    "track_parcel": {
+      "name": "Sendung verfolgen",
+      "description": "UPS-Sendung anhand der Sendungsnummer verfolgen.",
+      "fields": {
+        "tracking_code": {
+          "name": "Sendungsnummer",
+          "description": "UPS-Sendungsnummer."
+        },
+        "contents": {
+          "name": "Inhalt",
+          "description": "Eigene Beschreibung des Inhalts. Leerer Text löscht die Beschreibung."
+        }
+      }
+    },
+    "untrack_parcel": {
+      "name": "Sendungsverfolgung beenden",
+      "description": "Verfolgung einer UPS-Sendung beenden.",
+      "fields": {
+        "tracking_code": {
+          "name": "Sendungsnummer",
+          "description": "UPS-Sendungsnummer."
+        }
+      }
+    },
+    "update_contents": {
+      "name": "Sendungsinhalt aktualisieren",
+      "description": "Eigene Beschreibung des Inhalts setzen oder löschen.",
+      "fields": {
+        "tracking_code": {
+          "name": "Sendungsnummer",
+          "description": "UPS-Sendungsnummer."
+        },
+        "contents": {
+          "name": "Inhalt",
+          "description": "Eigene Beschreibung des Inhalts. Leerer Text löscht die Beschreibung."
+        }
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "parcel_registered": "Eine Sendung wurde registriert",
+      "parcel_status_changed": "Der Sendungsstatus hat sich geändert",
+      "parcel_delivered": "Eine Sendung wurde zugestellt",
+      "parcel_delivery_time_changed": "Die voraussichtliche Lieferzeit hat sich geändert"
+    }
+  },
+  "entity": {
+    "calendar": {
+      "deliveries": {
+        "name": "Lieferungen"
+      }
+    },
+    "sensor": {
+      "incoming_parcels": {
+        "name": "Eingehende Sendungen",
+        "unit_of_measurement": "Sendungen"
+      },
+      "next_delivery": {
+        "name": "Nächste Lieferung"
+      },
+      "delivered_parcels": {
+        "name": "Zugestellte Sendungen",
+        "unit_of_measurement": "Sendungen"
+      },
+      "last_update": {
+        "name": "Letzte erfolgreiche Aktualisierung"
+      },
+      "parcel": {
+        "name": "Sendung {barcode}"
+      },
+      "en_route_to_pickup_point": {
+        "name": "Unterwegs zur Abholstelle",
+        "unit_of_measurement": "Sendungen"
+      },
+      "awaiting_pickup": {
+        "name": "Warten auf Abholung",
+        "unit_of_measurement": "Sendungen"
+      }
+    },
+    "button": {
+      "refresh": {
+        "name": "Aktualisieren (mit Abfragelimit)"
+      }
+    }
+  }
+}

@@ -1,0 +1,245 @@
+# UPS Parcel Tracker — Germany development
+
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+> 📦 Derived from [**ha-parcel-integrations**](https://ha-parcel-integrations.github.io/), a family of package-tracking integrations for Home Assistant that all publish the same parcel format, statuses and events, so they plug into cross-carrier automations and the optional [Parcel Aggregator](https://github.com/ha-parcel-integrations/ha-parcel-aggregator). This independent development repository retains the upstream MIT notice.
+>
+> 💬 Questions or feedback? Join the discussion on the [Home Assistant community](https://community.home-assistant.io/t/packages-postnl-dhl-nl-dpd-and-gls-parcel-integration/112433/).
+
+> **Not everything UPS shows is available here yet.** The weight and
+> pickup-point fields stay empty, and `at_pickup_point` has never been seen
+> on a real parcel — none of them has shown up on a real
+> parcel yet. Each one has an open issue you can help close; see
+> [Troubleshooting](#troubleshooting).
+
+**Development status:** automatic UPS My Choice account discovery is not implemented or validated. See [API research and acceptance gates](docs/MY-CHOICE-DE.md). No consumer login, MFA or session endpoint is claimed.
+
+A custom Home Assistant integration that tracks your [UPS](https://www.ups.com/track) parcels. No account is needed — you enter the tracking code yourself, just like on the UPS website.
+
+## Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Options](#options)
+- [Removal](#removal)
+- [Sensors](#sensors)
+- [Parcel status reference](#parcel-status-reference)
+- [Events](#events)
+- [Services](#services)
+- [Examples](#examples)
+- [Debugging](#debugging)
+- [Troubleshooting](#troubleshooting)
+- [Related integrations](#related-integrations)
+- [Disclaimer](#disclaimer)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Features
+
+- Track any number of UPS parcels by tracking code — no account needed
+- Per-parcel sensor with the canonical status (`registered` / `in_transit` / `out_for_delivery` / `delivered` / …), the carrier's own status text and a tracking deep-link
+- Summary sensors: incoming parcels, next delivery, recently delivered parcels
+- Read-only **Deliveries** calendar, populated when UPS is currently showing a delivery estimate for a parcel
+- `ups.track_parcel` / `ups.untrack_parcel` services, so a dashboard button can add a parcel
+- Events + device triggers for no-code automations (parcel registered, status changed, delivered)
+- Opt-in per-parcel status history
+- A diagnostic last-update sensor
+- Budget-controlled manual refresh button: requests the normal coordinator cycle; it cannot bypass the budget or cooldown.
+
+## Requirements
+
+- Home Assistant 2026.11.3 is the target; compatibility must be verified before release.
+- A UPS parcel and its tracking code (from the shipping
+  confirmation email or the missed-delivery card) — no account needed
+
+## Installation
+
+### HACS custom repository (development)
+
+This repository is not published to the Marketplace default catalog. Add its GitHub URL as a custom integration repository in HACS only for development testing.
+
+[![Open your Home Assistant instance and open a repository inside the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Daniel-Dietz&repository=ha-ups&category=integration)
+
+### Manual
+
+Copy `custom_components/ups` into your `config/custom_components/` folder and restart Home Assistant.
+
+## Configuration
+
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ups)
+
+Or set it up by hand:
+
+Add the integration via **Settings → Devices & Services → Add Integration → UPS**. There is nothing to fill in: the hub is created immediately (UPS tracking needs no account).
+
+Then add parcels via the integration's **Configure** dialog, the [`ups.track_parcel`](#services) service, or a [dashboard button](examples/dashboards/add_parcel_card.yaml). The tracking code is on your shipping confirmation email or the missed-delivery card.
+
+## Options
+
+Open **Configure** on the integration entry:
+
+| Section | Option | Default | Description |
+|---|---|---|---|
+| Parcels | Add / remove | — | Manage the tracked tracking codes. Changes apply immediately, no restart. |
+| Delivered parcels | Filter by / amount | last 7 days | How long delivered parcels stay visible on the delivered sensor. |
+| Parcel history | Include status history | off | Adds a `history` attribute per parcel with each status update. |
+
+### Polling
+
+Polling isn't one of these settings, and there is nothing to configure.
+
+**Expect updates hours apart, not minutes.** UPS allows one home connection
+only a handful of tracking lookups per hour, and there is no way to raise
+that — no account, no API key, no setting. Ask too often and it simply stops
+answering for a couple of hours. So the integration spends what it is given,
+carefully:
+
+- **one parcel is refreshed per turn**, roughly once an hour, and your
+  parcels take turns. Two parcels means each is refreshed about every two
+  hours; ten means about every twelve. The integration warns in the log when
+  the list gets long enough for that to be worth knowing;
+- **a parcel you just added goes to the front of the queue**, and gets its
+  sensor immediately — showing `unknown` until its first update arrives, so
+  you can see it was registered even before it has been looked up. Add three
+  codes at once and all three appear straight away; they are then looked up a
+  few minutes apart rather than together;
+- **a delivered parcel is never looked up again.** It stays visible for as
+  long as your retention setting says, and costs nothing;
+- **nothing can force a burst.** A service call, an options change or
+  `homeassistant.update_entity` is served from the last known data when there
+  is no allowance left;
+- **restarting Home Assistant costs no requests at all.** Parcels are
+  published from disk, so restarting repeatedly while you configure things
+  doesn't pile anything up;
+- parcels waiting at a pickup point are refreshed last — nothing changes
+  there until you collect them;
+- **polling runs through the night.** Most parcel integrations pause until
+  morning; this one doesn't, because UPS scans overnight and the allowance is
+  small enough that skipping six hours would throw a quarter of it away.
+  Polling does stop entirely once nothing is left to track;
+- a run of failures stands down for hours rather than retrying on schedule,
+  because that is how long the endpoint takes to answer again.
+
+Slow updates are therefore the carrier's limit, not a fault. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for how the pacing works, and
+[CLAUDE.md](CLAUDE.md) for the constraints behind it.
+
+## Removal
+
+Standard HA removal applies: **Settings → Devices & Services → UPS → ⋮ → Delete**. Nothing is stored on UPS's side.
+
+## Sensors
+
+| Entity | Description |
+|---|---|
+| `sensor.ups_incoming_parcels` | Number of active tracked parcels, full list under the `parcels` attribute |
+| `sensor.ups_parcel_<code>` | One per tracked parcel; state is the canonical status, attributes carry the full normalised parcel |
+| `sensor.ups_next_delivery` | Earliest expected delivery moment across all active parcels |
+| `sensor.ups_en_route_to_pickup_point` | Parcels on their way to a UPS Access Point, full list under the `parcels` attribute |
+| `sensor.ups_awaiting_pickup` | Parcels waiting for you at a UPS Access Point, full list under the `parcels` attribute |
+| `sensor.ups_delivered_parcels` | Recently delivered parcels (see the retention option) |
+| `calendar.ups_deliveries` | Read-only calendar of expected deliveries, no extra API calls |
+| `sensor.ups_last_successful_update` | Diagnostic: when UPS was last polled successfully |
+| `button.ups_refresh` | Request a normal budget-controlled refresh |
+
+A delivered parcel moves from its per-parcel sensor to the delivered sensor automatically.
+
+## Parcel status reference
+
+The `status` field is the carrier-agnostic enum shared by the whole integration family:
+
+| Status | Meaning | Confirmed for UPS? |
+|---|---|---|
+| `registered` | Announced / received by UPS | ✅ |
+| `in_transit` | In the sorting network | ✅ |
+| `out_for_delivery` | With the courier today | ✅ |
+| `at_pickup_point` | Waiting for you at a pickup location | ⚠️ mapped from UPS's status list, not yet seen on a real parcel |
+| `delivered` | Delivered | ✅ |
+| `returning` | Going back to the sender | ✅ |
+| `problem` | UPS reports an exception | ✅ |
+| `unknown` | Not yet scanned, or a status we have not mapped yet | — |
+
+The carrier's own human-readable text is always available as `raw_status`. An
+unrecognised status is reported as `unknown` and logs a one-time warning with
+a link to open an issue — that's how the ⚠️ rows above get confirmed. A ⚠️ row
+means the status is mapped from UPS's published status list, so
+the meaning is right, but no real parcel has yet been observed reporting it.
+
+## Events
+
+The integration fires these on the event bus (also available as device triggers on the UPS device):
+
+| Event | When |
+|---|---|
+| `ups_parcel_registered` | A new parcel appears in the active list |
+| `ups_parcel_status_changed` | A parcel's canonical status changes (`old_status` / `new_status` in the payload), except the final hop to delivered |
+| `ups_parcel_delivered` | A parcel is delivered |
+| `ups_parcel_delivery_time_changed` | The expected delivery window changes |
+
+Every payload contains only carrier, barcode, canonical status, delivered flag/date, planned window, pickup flag and the hub's `device_id`. Events are suppressed on the first refresh after start-up. Raw payloads, addresses, notes, tracking URLs and free-text fields are omitted. The barcode remains in legacy events for correlation; it can identify a shipment and must be handled as personal data. Existing automations reading removed fields must use the relevant authorized entity instead.
+
+## Services
+
+| Service | Fields | Description |
+|---|---|---|
+| `ups.track_parcel` | `tracking_code`, `contents` (optional) | Start tracking a parcel, and optionally set what is in it |
+| `ups.untrack_parcel` | `tracking_code` | Stop tracking a parcel |
+| `ups.update_contents` | `tracking_code`, `contents` | Set or clear a note on what is in a parcel; shown as `contents`, as the calendar event title and on the next-delivery sensor |
+
+## Examples
+
+Ready-to-paste automations and dashboard snippets live in [`examples/`](examples/), including tracking a new parcel straight from a dashboard.
+
+### Community Lovelace cards
+
+Third-party cards that work with this integration's sensors:
+
+- [jonisnet/ha-parcel-card](https://github.com/jonisnet/ha-parcel-card)
+- [klaptafel/ha-package-tracker-card](https://github.com/klaptafel/ha-package-tracker-card)
+
+## Debugging
+
+```yaml
+logger:
+  logs:
+    custom_components.ups: debug
+```
+
+## Troubleshooting
+
+- **A parcel shows `unknown`** — either UPS has not scanned it yet (the endpoint reports the code as not found until the first scan) or the code is wrong, and then it picks up automatically once scanned; or the integration has never reached UPS for it. If the log shows "request timed out" for that parcel, it is the second case, see below.
+- **A status logs "Unrecognised UPS status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-ups/issues/new?template=unrecognised_status.yml) with the logged line so the mapping can be extended. `at_pickup_point` is the one still missing entirely, so a parcel waiting in a UPS Access Point is the most likely source.
+- **A poll logs "UPS fetch failed... request timed out"** — UPS's tracking endpoint does not return an error when it won't answer; the request simply hangs until the timeout. Usually it means this connection has used up its small allowance of lookups, and it clears by itself within a few hours: the integration stands down for two hours after a failed poll, doubling up to six, and will not let anything force extra requests during that window. If *every* lookup keeps timing out for days on end, including right after a restart, please [open an issue](https://github.com/ha-parcel-integrations/ha-ups/issues/new) — that pattern means UPS has changed something, not that your connection is busy.
+- **No delivery window / calendar entry for a parcel** — UPS only sends an estimate while one exists for that parcel (it disappears once delivered), and only from ``sdd``/``sdst``/``sdt``; a parcel without a current estimate keeps `planned_from`/`planned_to` at `None`. A single delivery time runs to the end of that day, and the window is empty once the parcel is at a pickup point, returning or delivered.
+- **A delivery window is an hour or two off** — UPS sends the window in the recipient's local time but sometimes leaves out which time zone that is. For a parcel to the country set in Home Assistant, the integration then uses Home Assistant's time zone; for a parcel to another country it can only assume UTC.
+
+## Related integrations
+
+This integration is part of [**ha-parcel-integrations**](https://ha-parcel-integrations.github.io/) — a family of
+parcel-carrier integrations that all publish the same canonical parcel format,
+statuses and events.
+
+- [**Parcel Aggregator**](https://github.com/ha-parcel-integrations/ha-parcel-aggregator) rolls every installed carrier
+  up into one set of sensors.
+- Browse [the organisation](https://ha-parcel-integrations.github.io/) for the current list of supported carriers.
+
+## Disclaimer
+
+This is an independent, community-built project. It is not affiliated with, endorsed by, sponsored by, or supported by UPS, Home Assistant, or any other third party referenced in this project. Please don't contact UPS for support with this integration.
+
+All third-party trademarks, trade names, product names, logos, and other brand assets are the property of their respective owners. References to them are solely to identify the relevant carrier or service and do not imply affiliation, sponsorship, or endorsement. Nothing in this project grants or implies any licence or right to use third-party brand assets.
+
+This integration may rely on public, unofficial, or undocumented carrier interfaces, accessed with your own account or API key where required. These may change or be withdrawn without notice and may be subject to UPS's terms. Data is sent only to UPS's own services or those of its group; this project operates no servers of its own. You are responsible for ensuring that your use complies with applicable law and those terms. Use is at your own risk; see the [licence](LICENSE) for warranty limitations.
+
+This integration uses the same public tracking endpoint as the UPS consumer website.
+
+## Contributing
+
+Pull requests and issues are welcome. Please open an issue before
+submitting a large change.
+
+## License
+
+[MIT](LICENSE)

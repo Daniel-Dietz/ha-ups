@@ -1,0 +1,154 @@
+"""Sample UPS ``trackDetails[]`` entries shared by the test modules."""
+
+from __future__ import annotations
+
+ACTIVE_CODE = "1Z999AA10123456784"
+DELIVERED_CODE = "1Z999AA10123456999"
+
+
+def _activity(
+    act_code: str,
+    name_key: str | None,
+    gmt_date: str,
+    gmt_time: str,
+) -> dict:
+    """One ``shipmentProgressActivities[]`` entry."""
+    return {
+        "actCode": act_code,
+        "gmtDate": gmt_date,
+        "gmtTime": gmt_time,
+        "gmtOffset": "+00:00",
+        "milestoneName": {"nameKey": name_key} if name_key else None,
+    }
+
+
+def delivered_sample(code: str = DELIVERED_CODE) -> dict:
+    """A representative ``trackDetails[]`` entry for a delivered parcel.
+
+    Newest-first, matching the API's own order — the delivered scan is
+    index 0, the label-created scan is last.
+    """
+    return {
+        "requestedTrackingNumber": code,
+        "trackingNumber": code,
+        "errorCode": None,
+        "errorText": None,
+        "packageStatus": "Delivered",
+        "packageStatusType": "D",
+        "packageStatusCode": "011",
+        "isDelivered": True,
+        "isDeliveredToUAP": False,
+        "isPickedUpByCustomer": False,
+        "currentMilestone": {"nameKey": "cms.stapp.delivered"},
+        "milestones": [
+            {"nameKey": "cms.stapp.orderReceived", "isCurrent": False},
+            {"nameKey": "cms.stapp.weHaveYourPkg", "isCurrent": False},
+            {"nameKey": "cms.stapp.inTransit", "isCurrent": False},
+            {"nameKey": "cms.stapp.outForDelivery", "isCurrent": False},
+            {"nameKey": "cms.stapp.delivered", "isCurrent": True},
+        ],
+        "shipmentProgressActivities": [
+            _activity("FS", "cms.stapp.delivered", "20260429", "13:12:42"),
+            _activity("OT", "cms.stapp.outForDelivery", "20260429", "08:46:00"),
+            _activity("AR", "cms.stapp.inTransit", "20260428", "15:52:17"),
+            _activity("DP", None, "20260428", "06:03:11"),
+            _activity("OR", "cms.stapp.weHaveYourPkg", "20260427", "23:03:58"),
+            _activity("MP", "cms.stapp.orderReceived", "20260427", "10:00:00"),
+        ],
+        "upsAccessPoint": None,
+        "additionalInformation": {
+            "serviceInformation": {"serviceName": "UPS Standard&#174;"},
+            "weight": "",
+            "weightUnit": None,
+        },
+    }
+
+
+def active_sample(code: str = ACTIVE_CODE) -> dict:
+    """An out-for-delivery parcel — the ladder short of the delivered scan."""
+    sample = delivered_sample(code)
+    sample.update(
+        {
+            "packageStatus": "Out For Delivery",
+            "packageStatusType": "I",
+            "packageStatusCode": "OT",
+            "isDelivered": False,
+            "currentMilestone": {"nameKey": "cms.stapp.outForDelivery"},
+            "shipmentProgressActivities": sample["shipmentProgressActivities"][1:],
+        }
+    )
+    sample["milestones"] = [
+        {**m, "isCurrent": m["nameKey"] == "cms.stapp.outForDelivery"}
+        for m in sample["milestones"]
+    ]
+    return sample
+
+
+def active_sample_with_eta(code: str = ACTIVE_CODE) -> dict:
+    """``active_sample`` plus a live delivery estimate.
+
+    ``sdd``/``sdst``/``sdt`` and ``shipmentGMTInfo``, matching what was
+    captured on issue #1 — confirmed against ups.com's own "Friday September
+    18 between 3:30 P.M. - 7:30 P.M." for the same parcel. Kept separate from
+    :func:`active_sample`: that fixture backs the polling-tier tests, and an
+    ETA fixed to a real calendar date would silently start downgrading their
+    tier once "now" passes it (``_hottest_tier_minutes`` only stays hot within
+    ``HOT_LOOKAHEAD_HOURS`` of ``planned_from``).
+    """
+    sample = active_sample(code)
+    sample.update(
+        {
+            "sdd": "20260918",
+            "sdst": "15:30:00",
+            "sdt": "19:30:00",
+            "shipmentGMTInfo": {
+                "shipFromGMTOffset": "-04:00",
+                "shipToGMTOffset": "-06:00",
+            },
+        }
+    )
+    return sample
+
+
+def nl_sample_with_eta(code: str = ACTIVE_CODE) -> dict:
+    """A live estimate for a parcel to a Dutch address, as UPS sent it.
+
+    Captured 2026-11 (UPS Worldwide Saver from outside the EU): the window is
+    in Dutch local time — ups.com showed the same parcel as "Maandag, November
+    09, 11:00 - 14:00" — but ``shipToGMTOffset`` says ``+00:00``, which is
+    what UPS sends when it does not know. The ship-from offset is right.
+    """
+    sample = active_sample(code)
+    sample.update(
+        {
+            "sdd": "20261109",
+            "sdst": "11:00:00",
+            "sdt": "14:00:00",
+            "packageStatusTime": "11:00 - 14:00",
+            "shipmentGMTInfo": {
+                "shipFromGMTOffset": "-06:00",
+                "shipToGMTOffset": "+00:00",
+            },
+            "shipToAddress": {"country": "NL"},
+        }
+    )
+    return sample
+
+
+def weighed_sample(code: str = DELIVERED_CODE) -> dict:
+    """A delivered parcel with a populated weight — never seen live yet, but
+    the mapping (KGS/LBS -> kg) must still be exercised."""
+    sample = delivered_sample(code)
+    sample["additionalInformation"]["weight"] = "1.25"
+    sample["additionalInformation"]["weightUnit"] = "KGS"
+    return sample
+
+
+def not_found_envelope(code: str) -> dict:
+    """The ``trackDetails[0]`` entry for an unknown tracking number."""
+    return {
+        "requestedTrackingNumber": code,
+        "trackingNumber": code,
+        "errorCode": "504",
+        "errorText": "Tracking number not found in database",
+    }
