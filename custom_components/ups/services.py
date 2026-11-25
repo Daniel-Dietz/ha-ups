@@ -60,11 +60,10 @@ def async_setup_services(hass: HomeAssistant) -> None:
         return
 
     async def _track(call: ServiceCall) -> None:
+        """Add a parcel or update its local contents note."""
         tracking_code = normalize_tracking_code(call.data[CONF_TRACKING_CODE])
         if not valid_tracking_code(tracking_code):
-            raise ServiceValidationError(
-                f"'{tracking_code}' is not a valid UPS tracking code"
-            )
+            raise ServiceValidationError("Invalid UPS tracking code")
         entry = _resolve_entry(hass)
 
         has_contents = CONF_CONTENTS in call.data
@@ -89,6 +88,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
         )
 
     async def _untrack(call: ServiceCall) -> None:
+        """Remove a parcel and clear its local note."""
         tracking_code = normalize_tracking_code(call.data[CONF_TRACKING_CODE])
         entry = _resolve_entry(hass)
         if (store := _contents_store(entry)) is not None:
@@ -101,6 +101,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
             )
 
     async def _update_contents(call: ServiceCall) -> None:
+        """Update the local contents note without sending it to UPS."""
         tracking_code = normalize_code(call.data[CONF_TRACKING_CODE])
         if not tracking_code:
             raise ServiceValidationError("A tracking code is required")

@@ -50,7 +50,7 @@ A custom Home Assistant integration that tracks your [UPS](https://www.ups.com/t
 
 ## Requirements
 
-- Home Assistant 2026.11.3 is the target; compatibility must be verified before release.
+- Home Assistant 2026.11.3: real-core runtime smoke test passes with the upstream Parcel Aggregator revision documented below. The full fixture suite still targets Home Assistant 2026.10.4; no newer-version production release is claimed.
 - A UPS parcel and its tracking code (from the shipping
   confirmation email or the missed-delivery card) — no account needed
 
@@ -178,7 +178,7 @@ The integration fires these on the event bus (also available as device triggers 
 | `ups_parcel_delivered` | A parcel is delivered |
 | `ups_parcel_delivery_time_changed` | The expected delivery window changes |
 
-Every payload contains only carrier, barcode, canonical status, delivered flag/date, planned window, pickup flag and the hub's `device_id`. Events are suppressed on the first refresh after start-up. Raw payloads, addresses, notes, tracking URLs and free-text fields are omitted. The barcode remains in legacy events for correlation; it can identify a shipment and must be handled as personal data. Existing automations reading removed fields must use the relevant authorized entity instead.
+Every payload contains only carrier, barcode, canonical status, delivered flag/date, planned window, pickup flag and the hub's `device_id`. Events are suppressed when the initial state is seeded, including existing cached parcels; a parcel added to an initially empty hub does generate a registration event. Raw payloads, addresses, notes, tracking URLs and free-text fields are omitted. The barcode remains in legacy events for correlation; it can identify a shipment and must be handled as personal data. Existing automations reading removed fields must use the relevant authorized entity instead.
 
 ## Services
 
@@ -209,9 +209,9 @@ logger:
 
 ## Troubleshooting
 
-- **A parcel shows `unknown`** — either UPS has not scanned it yet (the endpoint reports the code as not found until the first scan) or the code is wrong, and then it picks up automatically once scanned; or the integration has never reached UPS for it. If the log shows "request timed out" for that parcel, it is the second case, see below.
-- **A status logs "Unrecognised UPS status"** — please [open an issue](https://github.com/ha-parcel-integrations/ha-ups/issues/new?template=unrecognised_status.yml) with the logged line so the mapping can be extended. `at_pickup_point` is the one still missing entirely, so a parcel waiting in a UPS Access Point is the most likely source.
-- **A poll logs "UPS fetch failed... request timed out"** — UPS's tracking endpoint does not return an error when it won't answer; the request simply hangs until the timeout. Usually it means this connection has used up its small allowance of lookups, and it clears by itself within a few hours: the integration stands down for two hours after a failed poll, doubling up to six, and will not let anything force extra requests during that window. If *every* lookup keeps timing out for days on end, including right after a restart, please [open an issue](https://github.com/ha-parcel-integrations/ha-ups/issues/new) — that pattern means UPS has changed something, not that your connection is busy.
+- **A parcel shows `unknown`** — either UPS has not scanned it yet (the endpoint reports the code as not found until the first scan) or the code is wrong, and then it picks up automatically once scanned; or the integration has never reached UPS for it. Check the last-successful-update sensor and the privacy-safe diagnostics to distinguish a carrier failure from an unknown parcel.
+- **A status logs "Unrecognised UPS status"** — please [open an issue](https://github.com/Daniel-Dietz/ha-ups/issues/new?template=unrecognised_status.yml) with only a sanitized status code (never a complete raw payload or tracking identifier) so the mapping can be extended. `at_pickup_point` is the one still missing entirely, so a parcel waiting in a UPS Access Point is the most likely source.
+- **A poll reports a transport failure** — UPS's tracking endpoint does not return an error when it won't answer; the request simply hangs until the timeout. Usually it means this connection has used up its small allowance of lookups, and it clears by itself within a few hours: the integration stands down for two hours after a failed poll, doubling up to six, and will not let anything force extra requests during that window. If *every* lookup keeps timing out for days on end, including right after a restart, please [open an issue](https://github.com/Daniel-Dietz/ha-ups/issues/new) — that pattern means UPS has changed something, not that your connection is busy.
 - **No delivery window / calendar entry for a parcel** — UPS only sends an estimate while one exists for that parcel (it disappears once delivered), and only from ``sdd``/``sdst``/``sdt``; a parcel without a current estimate keeps `planned_from`/`planned_to` at `None`. A single delivery time runs to the end of that day, and the window is empty once the parcel is at a pickup point, returning or delivered.
 - **A delivery window is an hour or two off** — UPS sends the window in the recipient's local time but sometimes leaves out which time zone that is. For a parcel to the country set in Home Assistant, the integration then uses Home Assistant's time zone; for a parcel to another country it can only assume UTC.
 

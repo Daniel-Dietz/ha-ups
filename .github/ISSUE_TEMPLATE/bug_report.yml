@@ -2,8 +2,6 @@ name: Bug report
 description: Report a bug in the UPS integration
 title: "[Bug]: "
 labels: ["bug"]
-assignees:
-  - peter-mdf
 body:
   - type: markdown
     attributes:
@@ -53,5 +51,5 @@ body:
     attributes:
       label: Relevant logs
       description: |
-        Enable debug logging for `custom_components.ups` (Settings → Devices & Services → UPS → ⋮ → Enable debug logging) and paste the relevant lines. **Redact tokens, e-mail addresses and barcodes** before posting.
+        Enable debug logging for `custom_components.ups` (Settings → Devices & Services → UPS → ⋮ → Enable debug logging) and paste the relevant lines. Do not post credentials, cookies, tokens, tracking numbers, names, addresses, complete carrier responses or raw browser captures.
       render: shell

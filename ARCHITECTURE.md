@@ -359,8 +359,7 @@ RTC syncing after boot) re-anchors rather than banking the skew as credit.
 
 ## Bus events
 
-Fired by `_fire_change_events()`, silent on the very first refresh. Every
-payload is the normalised parcel plus `device_id`.
+Fired by `_fire_change_events()`, silent during initial cache seeding (including a known empty list). Subsequent additions generate events. The event contains the documented reduced canonical fields plus `device_id` and change-specific status or ETA fields.
 
 | Event | When |
 |---|---|

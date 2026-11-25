@@ -441,11 +441,11 @@ class UPSCoordinator(DataUpdateCoordinator[list[dict]]):
             )
 
     def seed_from_cache(self) -> bool:
-        """Publish every tracked parcel without any HTTP. Returns whether it did.
+        """Seed the initial state without HTTP; return whether parcels were configured.
 
-        Setup issues no requests at all. The first refresh runs inline in
-        ``async_setup_entry``, so with the address closed every tracked code
-        burns its full timeout in sequence — observed blocking entry setup for
+        Setup issues no requests at all. When the first refresh used to run
+        inline during setup, with the address closed every tracked code
+        burned its full timeout in sequence — observed blocking entry setup for
         88 s on two codes while issuing exactly the burst that keeps the
         cooldown alive. Restarting a few times while configuring is normal,
         and it was the most reliable way to lose the endpoint.
@@ -457,8 +457,9 @@ class UPSCoordinator(DataUpdateCoordinator[list[dict]]):
         entity at all.
         """
         codes = self._tracked()
-        if not codes:
-            return False
+        # An empty configured list is a known baseline, not missing carrier
+        # data. Seed it so the first parcel added later emits "registered".
+        # This also suspends an empty hub without spending any request.
         raws = [
             self._raw_cache.get(code) or {"requestedTrackingNumber": code}
             for code in codes
@@ -473,7 +474,7 @@ class UPSCoordinator(DataUpdateCoordinator[list[dict]]):
         # Publishes the data and arms the scheduler off the interval just
         # computed, so the first real request lands when the budget allows.
         self.async_set_updated_data(active)
-        return True
+        return bool(codes)
 
     @property
     def recent_fetches(self) -> list[dict[str, Any]]:
@@ -508,12 +509,14 @@ class UPSCoordinator(DataUpdateCoordinator[list[dict]]):
         return self._cached_device_id
 
     def _tracked(self) -> list[str]:
-        """Return the configured tracking codes."""
-        return [
-            item[CONF_TRACKING_CODE]
-            for item in self.config_entry.options.get(CONF_PARCELS, [])
-            if item.get(CONF_TRACKING_CODE)
-        ]
+        """Return unique configured tracking codes in their original order."""
+        return list(
+            dict.fromkeys(
+                item[CONF_TRACKING_CODE]
+                for item in self.config_entry.options.get(CONF_PARCELS, [])
+                if item.get(CONF_TRACKING_CODE)
+            )
+        )
 
     @property
     def _include_history(self) -> bool:

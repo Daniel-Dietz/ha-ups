@@ -173,3 +173,40 @@ async def test_options_update_applies_live_without_reload(hass):
 
     incoming = hass.states.get("sensor.ups_incoming_parcels")
     assert incoming.state == "2"
+
+
+async def test_empty_setup_emits_event_for_first_added_parcel(hass):
+    """An empty initialized hub must announce a newly added parcel."""
+    entry = MockConfigEntry(domain=DOMAIN, unique_id=DOMAIN, options={CONF_PARCELS: []})
+    entry.add_to_hass(hass)
+    events = []
+    hass.bus.async_listen("ups_parcel_registered", events.append)
+    with patch(
+        "custom_components.ups.api.UPSApiClient.async_get_parcel",
+        new=AsyncMock(return_value=_sample(OTHER_CODE)),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        assert not events
+        await hass.services.async_call(
+            DOMAIN, "track_parcel", {CONF_TRACKING_CODE: OTHER_CODE}, blocking=True
+        )
+        await hass.async_block_till_done()
+        assert len(events) == 1
+        assert events[0].data["barcode"] == OTHER_CODE
+
+
+async def test_duplicate_legacy_options_publish_one_parcel(hass):
+    """Previously duplicated options do not produce duplicate summary records."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=DOMAIN,
+        options={CONF_PARCELS: [{CONF_TRACKING_CODE: ACTIVE_CODE}] * 2},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    incoming = hass.states.get("sensor.ups_incoming_parcels")
+    assert incoming is not None
+    assert incoming.state == "1"
+    assert len(incoming.attributes["parcels"]) == 1

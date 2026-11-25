@@ -15,7 +15,7 @@ jobs:
         with:
           python-version: "3.14"
       - run: pip install -r requirements-dev.txt
-      - run: python -m pytest tests/ --cov=custom_components.ups --cov-report=term-missing
+      - run: python -m pytest tests/ --cov=custom_components.ups --cov-report=term-missing --cov-fail-under=95
   target-core:
     runs-on: ubuntu-latest
     strategy:
@@ -36,7 +36,15 @@ jobs:
           else
             pip install "homeassistant==$HA_VERSION"
           fi
+      - name: Checkout verified aggregator revision
+        uses: actions/checkout@v7
+        with:
+          repository: ha-parcel-integrations/ha-parcel-aggregator
+          ref: a17df3649bf6d3fc4876aa33676975b066cee1ad
+          path: .test-deps/parcel-aggregator
+          persist-credentials: false
       - run: python scripts/smoke_core.py
+      - run: python scripts/smoke_runtime.py --aggregator-source .test-deps/parcel-aggregator
   ruff:
     runs-on: ubuntu-latest
     steps:

@@ -215,40 +215,31 @@ _ACTIVITY_CODE_MAP: dict[str, ParcelStatus | None] = {
 }
 
 
-# Status codes we have already warned about, so each unmapped one is logged
-# only once per HA session instead of on every poll.
+# Track only fixed categories, not untrusted strings or personal identifiers.
 _unmapped_statuses_logged: set[str] = set()
 
 
-def _warn_unmapped_status(code: str) -> None:
-    """Log an unmapped carrier status once, with a copy-paste issue link."""
-    if code in _unmapped_statuses_logged:
+def _warn_unmapped_status() -> None:
+    """Log the first unknown status without exposing carrier-controlled text."""
+    if "status" in _unmapped_statuses_logged:
         return
-    _unmapped_statuses_logged.add(code)
+    _unmapped_statuses_logged.add("status")
     _LOGGER.warning(
-        "Unrecognised UPS status — help us map it. Open an issue "
-        "and paste this line: %s\n  status=%s → reported as 'unknown'",
+        "Unrecognised UPS status; reported as unknown. Report a sanitized "
+        "status mapping example at %s",
         NEW_ISSUE_URL,
-        code,
     )
 
 
-def _warn_unmapped_activity(code: str) -> None:
-    """Log an unmapped scan code once, naming the field it came from.
-
-    Separate from the status warning so a report says which vocabulary the
-    code belongs to — the two are not interchangeable.
-    """
-    key = f"actCode={code}"
-    if key in _unmapped_statuses_logged:
+def _warn_unmapped_activity() -> None:
+    """Log the first unknown activity without exposing carrier-controlled text."""
+    if "activity" in _unmapped_statuses_logged:
         return
-    _unmapped_statuses_logged.add(key)
+    _unmapped_statuses_logged.add("activity")
     _LOGGER.warning(
-        "Unrecognised UPS scan code — help us map it. Open an issue "
-        "and paste this line: %s\n  actCode=%s → history entry reported "
-        "without a status",
+        "Unrecognised UPS scan code; history entry has no canonical status. "
+        "Report a sanitized mapping example at %s",
         NEW_ISSUE_URL,
-        code,
     )
 
 
@@ -262,7 +253,7 @@ def map_activity_status(code: str | None) -> ParcelStatus | None:
         return None
     if code in _ACTIVITY_CODE_MAP:
         return _ACTIVITY_CODE_MAP[code]
-    _warn_unmapped_activity(code)
+    _warn_unmapped_activity()
     return None
 
 
@@ -277,7 +268,7 @@ def map_parcel_status(code: str | None) -> ParcelStatus:
     mapped = _STATUS_MAP.get(code)
     if mapped is not None:
         return mapped
-    _warn_unmapped_status(code)
+    _warn_unmapped_status()
     return ParcelStatus.UNKNOWN
 
 
@@ -293,22 +284,15 @@ def map_event_status(code: str | None) -> ParcelStatus | None:
     mapped = _STATUS_MAP.get(code)
     if mapped is not None:
         return mapped
-    _warn_unmapped_status(code)
+    _warn_unmapped_status()
     return None
 
 
-# Distinct (requested, echoed) tracking-number pairs already warned about, so
-# a barcode UPS echoes differently from what the user typed doesn't flood the
-# log on every poll.
-_tracking_number_mismatches_logged: set[tuple[str, str]] = set()
-
-
-def _warn_tracking_number_mismatch(requested: str, echoed: str) -> None:
-    """One-shot warning when UPS echoes a different tracking number back."""
-    pair = (requested, echoed)
-    if pair in _tracking_number_mismatches_logged:
+def _warn_tracking_number_mismatch() -> None:
+    """Warn once per process without retaining either tracking number."""
+    if "mismatch" in _unmapped_statuses_logged:
         return
-    _tracking_number_mismatches_logged.add(pair)
+    _unmapped_statuses_logged.add("mismatch")
     _LOGGER.warning(
         "UPS echoed a different tracking number than requested — "
         "keeping the value you configured",
@@ -884,7 +868,7 @@ def normalize_parcel(
     requested_code = raw.get("requestedTrackingNumber")
     echoed_code = raw.get("trackingNumber")
     if requested_code and echoed_code and requested_code != echoed_code:
-        _warn_tracking_number_mismatch(requested_code, echoed_code)
+        _warn_tracking_number_mismatch()
     tracking_code = requested_code or echoed_code
 
     activities = raw.get("shipmentProgressActivities") or []

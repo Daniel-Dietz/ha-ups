@@ -48,3 +48,6 @@ browser-profile/
 *.pem
 *.key
 .env.*
+
+# Pinned external source used only by the real-core runtime test.
+.test-deps/

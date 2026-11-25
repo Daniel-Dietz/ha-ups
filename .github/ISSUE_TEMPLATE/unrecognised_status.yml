@@ -1,56 +1,31 @@
-name: 🏷️ Unrecognised parcel status
-description: The integration logged a warning asking you to report an unrecognised status or event.
+name: Unrecognised parcel status
+description: Report an unmapped UPS status using sanitized evidence.
 title: "[status] "
 labels: ["unrecognised-status"]
-assignees:
-  - peter-mdf
 body:
   - type: markdown
     attributes:
       value: |
-        The integration logs a warning such as
-
-        ```
-        Unrecognised UPS status — help us map it. Open an issue
-        and paste this line: …
-          status=… → reported as 'unknown'
-        ```
-
-        Paste that full line below and we'll add it to the mapping.
+        The integration logs a generic warning without carrier-controlled
+        data. Only report a non-identifying status or activity code and its
+        expected meaning. Do not attach raw carrier responses, tracking
+        numbers, browser captures, credentials, tokens, addresses or names.
   - type: textarea
-    id: logline
+    id: mapping
     attributes:
-      label: The log line
-      description: Copy the full "help us map it" warning line from your Home Assistant log.
-      render: text
+      label: Sanitized status mapping
+      description: Include the safe status code, expected meaning, and whether it is a status or activity code.
     validations:
       required: true
   - type: input
     id: version
     attributes:
       label: Integration version
-      placeholder: "e.g. 2.6.0"
     validations:
       required: true
   - type: input
     id: ha_version
     attributes:
       label: Home Assistant version
-      placeholder: "e.g. 2026.7.0"
-  - type: markdown
-    attributes:
-      value: |
-        ### 💡 Even better: attach a diagnostics file
-
-        A diagnostics download shows us the exact payload behind the warning —
-        usually all we need to fix the mapping, with no back-and-forth.
-
-        1. In Home Assistant, open **Settings → Devices & services**.
-        2. Open this integration, then click the **⋮** (three dots) on its entry.
-        3. Choose **Download diagnostics**.
-        4. Open the file and check it before attaching. Home Assistant redacts
-           known personal fields, but that list is per-integration and can
-           miss something an API happens to return in an unlisted place (a
-           name, an address, a link containing a tracking number). Please
-           hand-redact anything that still looks personal.
-        5. Drag the file onto this issue to attach it.
+    validations:
+      required: true

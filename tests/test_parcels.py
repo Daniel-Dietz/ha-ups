@@ -99,7 +99,8 @@ def test_map_event_status_missing_and_unmapped_are_none():
 def test_unmapped_status_warns_only_once(caplog):
     assert map_parcel_status("cms.stapp.abducted") == ParcelStatus.UNKNOWN
     assert map_parcel_status("cms.stapp.abducted") == ParcelStatus.UNKNOWN
-    assert caplog.text.count("cms.stapp.abducted") == 1
+    assert caplog.text.count("Unrecognised UPS status") == 1
+    assert "cms.stapp.abducted" not in caplog.text
     assert "issues/new" in caplog.text
 
 
@@ -250,7 +251,8 @@ def test_an_unknown_scan_code_warns_once_and_names_the_field(caplog):
     say which one it found."""
     assert map_activity_status("ZZ") is None
     assert map_activity_status("ZZ") is None
-    assert caplog.text.count("actCode=ZZ") == 1
+    assert caplog.text.count("Unrecognised UPS scan code") == 1
+    assert "actCode=ZZ" not in caplog.text
     assert "issues/new" in caplog.text
 
 
@@ -259,8 +261,9 @@ def test_a_scan_code_and_a_status_key_warn_separately(caplog):
     another in it."""
     map_activity_status("QQ")
     map_event_status("QQ")
-    assert "actCode=QQ" in caplog.text
-    assert caplog.text.count("QQ") == 2
+    assert caplog.text.count("Unrecognised UPS scan code") == 1
+    assert caplog.text.count("Unrecognised UPS status") == 1
+    assert "QQ" not in caplog.text
 
 
 def test_build_history_caps_to_max_events():
@@ -765,3 +768,10 @@ def test_a_parcel_in_transit_publishes_pickup_false():
     )
 
     assert parcel["pickup"] is False
+
+
+def test_untrusted_mapping_values_never_reach_log(caplog):
+    map_parcel_status("PRIVATE_TOKEN")
+    map_event_status("PRIVATE_EMAIL@example.invalid")
+    map_activity_status("PRIVATE_ADDRESS")
+    assert "PRIVATE_" not in caplog.text
